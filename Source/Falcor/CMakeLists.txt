@@ -524,6 +524,7 @@ target_sources(Falcor PRIVATE
     Utils/TermColor.h
     Utils/Threading.cpp
     Utils/Threading.h
+    Utils/renderdoc_app.h
 
     Utils/Algorithm/BitonicSort.cpp
     Utils/Algorithm/BitonicSort.cs.slang
@@ -840,6 +841,12 @@ target_sources(Falcor PRIVATE
 
 target_copy_shaders(Falcor .)
 target_copy_data_folder(Falcor)
+
+add_custom_command(TARGET Falcor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/Utils/renderdoc.dll
+        $<TARGET_FILE_DIR:Falcor>
+)
 
 target_compile_features(Falcor
     PUBLIC

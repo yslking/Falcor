@@ -249,6 +249,11 @@ RenderPassReflection ScriptableFullScreenPass::reflect(const CompileData& compil
     return reflector;
 }
 
+void ScriptableFullScreenPass::compile(RenderContext* pRenderContext, const CompileData& compileData)
+{
+    mFrameDim = compileData.defaultTexDims;
+}
+
 void ScriptableFullScreenPass::execute(RenderContext* pRenderContext, const RenderData& renderData)
 {
     if (mCompute && pInternalComputePass == nullptr) mResourceCreated = false;
@@ -308,13 +313,24 @@ void ScriptableFullScreenPass::execute(RenderContext* pRenderContext, const Rend
             }
         }
 
-
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iMousePosition", mMousePosition);
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iMouseCoordinate", mMouseCoordinate);
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iMouseLastCoordinate", mMouseLastCoordinate);
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iMouseLeftButtonDown", mMouseLeftButtonDown);
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iTime", (float)gpFramework->getGlobalClock().getTime());
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iDeltaTime", (float)gpFramework->getGlobalClock().getDelta());
+        if (auto scene = mpScene)
+        {
+            if (auto camera = scene->getCamera())
+            {
+                auto& cameraData = camera->getCameraData();
+                setConstantBufferItem(getRootVar(), "PerFrameCB", "iCameraPosition", cameraData.posW);
+                setConstantBufferItem(getRootVar(), "PerFrameCB", "iCameraU", cameraData.cameraU);
+                setConstantBufferItem(getRootVar(), "PerFrameCB", "iCameraV", cameraData.cameraV);
+                setConstantBufferItem(getRootVar(), "PerFrameCB", "iCameraW", cameraData.cameraW);
+                setConstantBufferItem(getRootVar(), "PerFrameCB", "iFrameDim", mFrameDim);
+            }
+        }
 
         if (!mCompute)
         {
@@ -345,17 +361,23 @@ void ScriptableFullScreenPass::execute(RenderContext* pRenderContext, const Rend
 
 void ScriptableFullScreenPass::createResources()
 {
+    Program::DefineList defineList;
+    if (mpScene)
+        defineList = mpScene->getSceneDefines();
+    else
+        defineList = Scene::getDefaultSceneDefines();
+
     try
     {
-        if(mCompute) pInternalComputePass = ComputePass::create(getShaderPath(), "main", Program::DefineList());
-        else pInternalGraphicsPass = FullScreenPass::create(getShaderPath(), Program::DefineList(), 0);
+        if(mCompute) pInternalComputePass = ComputePass::create(getShaderPath(), "main", defineList);
+        else pInternalGraphicsPass = FullScreenPass::create(getShaderPath(), defineList, 0);
     }
     catch(...)
     {
         if (pInternalGraphicsPass == nullptr)
         {
-            if(mCompute) pInternalComputePass = ComputePass::create(sDefaultComputeShaderPath, "main", Program::DefineList());
-            else pInternalGraphicsPass = FullScreenPass::create(sDefaultPixelShaderPath, Program::DefineList(), 0);
+            if(mCompute) pInternalComputePass = ComputePass::create(sDefaultComputeShaderPath, "main", defineList);
+            else pInternalGraphicsPass = FullScreenPass::create(sDefaultPixelShaderPath, defineList, 0);
         }
     }
 
@@ -425,6 +447,11 @@ void ScriptableFullScreenPass::renderUI(Gui::Widgets& widget)
         createResources();
         requestRecompile();
     }
+}
+
+void ScriptableFullScreenPass::setScene(RenderContext* pRenderContext, const Scene::SharedPtr& pScene)
+{
+    mpScene = pScene;
 }
 
 bool ScriptableFullScreenPass::onMouseEvent(const MouseEvent& mouseEvent)

@@ -799,6 +799,7 @@ int main(int argc, char** argv)
     args::Flag generateShaderDebugInfo(parser, "", "Generate shader debug info.", {'d', "debug-shaders"});
     args::Flag enableDebugLayer(parser, "", "Enable debug layer (enabled by default in Debug build).", {"enable-debug-layer"});
     args::Flag preciseProgram(parser, "", "Force all slang programs to run in precise mode", { "precise" });
+    args::Flag enableRenderDoc(parser, "", "Enable RenderDoc capture.", {"renderdoc"});
 
     args::CompletionFlag completionFlag(parser, {"complete"});
 
@@ -862,9 +863,10 @@ int main(int argc, char** argv)
         IRenderer::UniquePtr pRenderer = std::make_unique<Mogwai::Renderer>(options);
         SampleConfig config;
         config.windowDesc.title = "Mogwai";
+        config.deviceDesc.enableVsync = true;
         if (enableDebugLayer) config.deviceDesc.enableDebugLayer = true;
         if (preciseProgram) Program::setForcedCompilerFlags({ Shader::CompilerFlags::FloatingPointModePrecise, Shader::CompilerFlags::FloatingPointModeFast });
-
+        if (enableRenderDoc) config.loadRenderDoc = true;
         if (silentFlag)
         {
             config.suppressInput = true;

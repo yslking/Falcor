@@ -53,6 +53,7 @@ namespace Falcor
         float timeScale = 1.0f;                  ///< A scaling factor for the time elapsed between frames
         bool pauseTime = false;                  ///< Control whether or not to start the clock when the sample start running
         bool showUI = true;                      ///< Show the UI
+        bool loadRenderDoc = false;
     };
 
     class IFramework

@@ -392,6 +392,7 @@ void RenderGraphEditor::loadAllPassLibraries()
     for (auto& it : std::filesystem::directory_iterator(executableDirectory))
     {
         const auto& path = it.path();
+        if (path.filename() == "renderdoc.dll") continue;
         if (hasExtension(path, kLibraryExtension))
         {
             // check for addPasses()

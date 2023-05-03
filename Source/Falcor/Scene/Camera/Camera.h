@@ -289,6 +289,8 @@ namespace Falcor
         std::string getScript(const std::string& cameraVar);
 
         void dumpProperties();
+
+        const CameraData& getCameraData() const { return mData; }
     private:
         Camera(const std::string& name);
         Changes mChanges = Changes::None;

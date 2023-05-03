@@ -34,6 +34,7 @@
 #include <fstream>
 
 #ifdef FALCOR_D3D12
+#define USE_PIX 1
 #include <WinPixEventRuntime/pix3.h>
 #endif
 

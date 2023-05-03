@@ -72,7 +72,23 @@ namespace Falcor
 
     void Sample::handleRenderFrame()
     {
+        RENDERDOC_API_1_1_2* rdocApi = nullptr;
+        if (mCaptureThisFrame)
+        {
+            rdocApi = rdoc_api;
+            mCaptureThisFrame = false;
+        }
+
+        if(rdocApi) rdocApi->StartFrameCapture(NULL, NULL);
+
         renderFrame();
+
+        if (rdocApi)
+        {
+            rdocApi->EndFrameCapture(NULL, NULL);
+            if(!rdocApi->ShowReplayUI()) 
+                rdocApi->LaunchReplayUI(1, nullptr);
+        }
     }
 
     void Sample::handleKeyboardEvent(const KeyboardEvent& keyEvent)
@@ -97,17 +113,13 @@ namespace Falcor
             {
                 initVideoCapture();
             }
-            else if (keyEvent.hasModifier(Input::Modifier::Ctrl))
+            else if (keyEvent.hasModifier(Input::Modifier::Alt) && keyEvent.key == Input::Key::F12)
             {
-                switch (keyEvent.key)
-                {
-                case Input::Key::Pause:
-                case Input::Key::Space:
-                    mRendererPaused = !mRendererPaused;
-                    break;
-                default:
-                    break;
-                }
+                captureWithRenderDoc();
+            }
+            else if (keyEvent.hasModifier(Input::Modifier::Alt) && keyEvent.key == Input::Key::P)
+            {
+                mRendererPaused = !mRendererPaused;
             }
             else if (keyEvent.mods == Input::ModifierFlags::None)
             {
@@ -208,6 +220,26 @@ namespace Falcor
 
     void Sample::run(const SampleConfig& config, IRenderer::UniquePtr& pRenderer, uint32_t argc, char** argv)
     {
+        const char MODULE_NAME[] = "renderdoc.dll";
+        HMODULE mod = GetModuleHandleA(MODULE_NAME);
+        if (config.loadRenderDoc && !mod) mod = LoadLibraryA(MODULE_NAME);
+        if (mod)
+        {
+            pRENDERDOC_GetAPI RENDERDOC_GetAPI =
+                (pRENDERDOC_GetAPI)GetProcAddress(mod, "RENDERDOC_GetAPI");
+            int ret = RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2, (void**)&rdoc_api);
+            assert(ret == 1);
+            rdoc_api->MaskOverlayBits(0, 0);
+        }
+        else
+        {
+            if (config.loadRenderDoc)
+            {
+                auto result = GetLastError();
+                reportError("failed to load renderdoc.dll: " + std::to_string(result));
+            }
+        }
+
         Sample s(pRenderer);
         try
         {
@@ -374,7 +406,7 @@ namespace Falcor
             "Shift+F12 - Capture video\n"
             "V - Toggle VSync\n"
             "Pause|Space - Pause/resume the global timer\n"
-            "Ctrl+Pause|Space - Pause/resume the renderer\n"
+            "Alt+P - Pause/resume the renderer\n"
             "Z - Zoom in on a pixel\n"
             "MouseWheel - Change level of zoom\n"
 #if FALCOR_ENABLE_PROFILER
@@ -522,6 +554,26 @@ namespace Falcor
         mInputState.endFrame();
 
         Console::instance().flush();
+
+
+        if (false) {
+            HWND hwndForeground = GetForegroundWindow();
+
+            DWORD dwProcessId = 0;
+            DWORD dwThreadId = GetWindowThreadProcessId(hwndForeground, &dwProcessId);
+
+            DWORD dwCurrentProcessId = GetCurrentProcessId();
+
+            bool hasFocus = (dwProcessId == dwCurrentProcessId);
+            if (!hasFocus)
+            {
+                double sleepTime = 0.25 - mClock.getRealTimeDelta();
+                if (sleepTime > 0)
+                {
+                    Sleep(DWORD(1000 * sleepTime));
+                }
+            }
+        }
     }
 
     std::filesystem::path Sample::captureScreen(const std::string explicitFilename, const std::filesystem::path explicitDirectory)
@@ -680,4 +732,6 @@ namespace Falcor
         auto resize = [this](uint32_t width, uint32_t height) {resizeSwapChain(width, height); };
         m.def("resizeSwapChain", resize, "width"_a, "height"_a);
     }
+
+    RENDERDOC_API_1_1_2* Sample::rdoc_api = NULL;
 }

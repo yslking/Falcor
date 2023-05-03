@@ -29,6 +29,7 @@
 #include "Window.h"
 #include "Renderer.h"
 #include "Core/Macros.h"
+#include "Utils/renderdoc_app.h"
 #include "Utils/Timing/FrameRate.h"
 #include "Utils/Timing/ProfilerUI.h"
 #include "Utils/UI/Gui.h"
@@ -158,5 +159,10 @@ namespace Falcor
         Sample(IRenderer::UniquePtr& pRenderer);
         Sample(const Sample&) = delete;
         Sample& operator=(const Sample&) = delete;
+
+        static RENDERDOC_API_1_1_2* rdoc_api;
+        bool mCaptureThisFrame = false;
+    public:
+        void captureWithRenderDoc() { mCaptureThisFrame = true; };
     };
 };
