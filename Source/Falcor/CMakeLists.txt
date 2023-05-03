@@ -122,6 +122,9 @@ target_sources(Falcor PRIVATE
     Core/State/GraphicsState.h
     Core/State/StateGraph.h
 
+    RenderGraph/RenderPassUtils.cpp
+    RenderGraph/RenderPassUtils.h
+
     RenderGraph/RenderGraph.cpp
     RenderGraph/RenderGraph.h
     RenderGraph/RenderGraphCompiler.cpp

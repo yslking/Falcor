@@ -1192,6 +1192,7 @@ namespace Falcor
             {
                 std::string error = "Failed to link program:\n" + getProgramDescString() + "\n\n" + log;
                 reportErrorAndAllowRetry(error);
+                return false;
 
                 // Continue loop to keep trying...
             }

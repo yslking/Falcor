@@ -272,7 +272,7 @@ namespace Falcor
 
                 std::string error = "Failed to link program:\n" + getName() + "\n\n" + log;
                 reportErrorAndAllowRetry(error);
-
+                throw std::runtime_error("failed to link program");
                 // Continue loop to keep trying...
             }
         }
