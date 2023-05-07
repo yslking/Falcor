@@ -29,8 +29,13 @@
 #include "RenderGraph/RenderPassLibrary.h"
 #include "RenderGraph/RenderPassUtils.h"
 
+static std::string kShaderPath = "kShaderPath";
+static std::string kResources = "kResources";
+static std::string kThreads = "kThreads";
+static std::string kCompute = "kCompute";
+static std::string kAutoThreads = "kAutoThreads";
 
-namespace
+namespace ScriptableFullScreenPassStatic
 {
 
     static std::string pyRepr(const std::string& val)
@@ -81,18 +86,39 @@ namespace
 
     void regScriptableFullScreenPass(pybind11::module& m)
     {
-        pybind11::class_<ScriptableFullScreenPass, RenderPass, ScriptableFullScreenPass::SharedPtr> pass(m, "ScriptableFullScreenPass");
-        pass.def_property("shaderPath", &ScriptableFullScreenPass::getShaderPath, &ScriptableFullScreenPass::setShaderPath);
-        //pass.def_property("numberOfTargets", &ScriptableFullScreenPass::getNumberOfTargets, &ScriptableFullScreenPass::setNumberOfTargets);
-
         pybind11::class_<ResourceDesc> resourceDesc(m, "ResourceDesc");
-        resourceDesc.def(pybind11::init(&ResourceDesc::create));
-        resourceDesc.def(pybind11::init(&ResourceDesc::createDefault));
-        // static ResourceDesc create(const std::string identifier, Type type, const uint3& size, bool autoSized, uint32_t targetSlot, View view, Format format, bool clear)
-        
+        registerEnum<ResourceDesc::Type>(resourceDesc, "Type", ResourceDesc::TypeNames);
+        registerEnum<ResourceDesc::View>(resourceDesc, "View", ResourceDesc::ViewNames);
+        registerEnum<ResourceDesc::Format>(resourceDesc, "Format", ResourceDesc::FormatNames);
+
+        ResourceDesc defaultDesc = ResourceDesc::createDefault();
+        resourceDesc.def(
+            pybind11::init(&ResourceDesc::create),
+            pybind11::arg("identifier") = defaultDesc.identifier,
+            pybind11::arg("type") = defaultDesc.type,
+            pybind11::arg("size") = defaultDesc.size,
+            pybind11::arg("autoSized") = defaultDesc.autoSized,
+            pybind11::arg("targetSlot") = defaultDesc.targetSlot,
+            pybind11::arg("view") = defaultDesc.view,
+            pybind11::arg("format") = defaultDesc.format,
+            pybind11::arg("clear") = defaultDesc.clear,
+            pybind11::arg("optional") = defaultDesc.optional
+        );
+
+        resourceDesc.def_readwrite("identifier", &ResourceDesc::identifier);
+        resourceDesc.def_readwrite("type", &ResourceDesc::type);
+        resourceDesc.def_readwrite("size", &ResourceDesc::size);
+        resourceDesc.def_readwrite("autoSized", &ResourceDesc::autoSized);
+        resourceDesc.def_readwrite("targetSlot", &ResourceDesc::targetSlot);
+        resourceDesc.def_readwrite("view", &ResourceDesc::view);
+        resourceDesc.def_readwrite("format", &ResourceDesc::format);
+        resourceDesc.def_readwrite("clear", &ResourceDesc::clear);
+        resourceDesc.def_readwrite("optional", &ResourceDesc::optional);
+        resourceDesc.def("clone", [](ResourceDesc self) { return self; });
+
         resourceDesc.def("__repr__", [m, resourceDesc](const ResourceDesc& desc) {
             return fmt::format(
-                "ResourceDesc({}, {}, {}, {}, {}, {}, {}, {})",
+                "ResourceDesc(identifier={}, type={}, size={}, autoSized={}, targetSlot={}, view={}, format={}, clear={}, optional={})",
                 pyRepr(desc.identifier),
                 pyRepr(desc.type),
                 pyRepr(desc.size),
@@ -100,21 +126,18 @@ namespace
                 pyRepr(desc.targetSlot),
                 pyRepr(desc.view),
                 pyRepr(desc.format),
-                pyRepr(desc.clear)
+                pyRepr(desc.clear),
+                pyRepr(desc.optional)
             );
         });
-        
-        //resourceType.def_readwrite("type", &ResourceDesc::type);
-        //resourceType.def_readwrite("size", &ResourceDesc::size);
-        //resourceType.def_readwrite("identifier", &ResourceDesc::identifier);
-        //resourceType.def_readwrite("autoSized", &ResourceDesc::autoSized);
-        //resourceType.def_readwrite("view", &ResourceDesc::view);
-        //resourceType.def_readwrite("targetSlot", &ResourceDesc::targetSlot);
 
-        registerEnum<ResourceDesc::Type>(resourceDesc, "Type", ResourceDesc::TypeNames);
-        registerEnum<ResourceDesc::View>(resourceDesc, "View", ResourceDesc::ViewNames);
-        registerEnum<ResourceDesc::Format>(resourceDesc, "Format", ResourceDesc::FormatNames);
+        pybind11::class_<ScriptableFullScreenPass, RenderPass, ScriptableFullScreenPass::SharedPtr> pass(m, "ScriptableFullScreenPass");
 
+        pass.def_readwrite("shaderPath", &ScriptableFullScreenPass::mShaderPath);
+        pass.def_readwrite("resources", &ScriptableFullScreenPass::mResources);
+        pass.def_readwrite("threads", &ScriptableFullScreenPass::mThreads);
+        pass.def_readwrite("compute", &ScriptableFullScreenPass::mCompute);
+        pass.def_readwrite("autoThreads", &ScriptableFullScreenPass::mAutoThreads);
     }
 }
 
@@ -127,7 +150,7 @@ extern "C" FALCOR_API_EXPORT const char* getProjDir()
 extern "C" FALCOR_API_EXPORT void getPasses(Falcor::RenderPassLibrary& lib)
 {
     lib.registerPass(ScriptableFullScreenPass::kInfo, ScriptableFullScreenPass::create);
-    ScriptBindings::registerBinding(regScriptableFullScreenPass);
+    ScriptBindings::registerBinding(ScriptableFullScreenPassStatic::regScriptableFullScreenPass);
 }
 
 ScriptableFullScreenPass::SharedPtr ScriptableFullScreenPass::create(RenderContext* pRenderContext, const Dictionary& dict)
@@ -140,15 +163,9 @@ const RenderPass::Info ScriptableFullScreenPass::kInfo = { "ScriptableFullScreen
 const std::string ScriptableFullScreenPass::sDefaultPixelShaderPath = "RenderPasses/ScriptableFullScreenPass/DefaultShader.ps.slang";
 const std::string ScriptableFullScreenPass::sDefaultComputeShaderPath = "RenderPasses/ScriptableFullScreenPass/DefaultShader.cs.slang";
 
-const std::vector<std::string> ResourceDesc::TypeNames = { "Texture1D", "Texture2D", "Texture3D", "TextureCube", "RawBuffer", };
+const std::vector<std::string> ResourceDesc::TypeNames = { "Texture1D", "Texture2D", "Texture3D", "Texture2DArray", "TextureCube", "RawBuffer", };
 const std::vector<std::string> ResourceDesc::ViewNames = { "RTV_Out", "RTV_InOut", "UAV_Out", "UAV_InOut", "SRV", };
-const std::vector<std::string> ResourceDesc::FormatNames = { "Auto", "Unknown", "RGBA32F", "RGBA32U", "RGBA8Unorm", };
-
-static std::string kShaderPath = "kShaderPath";
-static std::string kResources = "kResources";
-static std::string kThreads = "kThreads";
-static std::string kCompute = "kCompute";
-static std::string kAutoThreads = "kAutoThreads";
+const std::vector<std::string> ResourceDesc::FormatNames = { "Auto", "Unknown", "RGBA32F", "RGBA32U", "RGBA32I", "RGBA8Unorm", "R32F", "R32U", "R32I" };
 
 Dictionary ScriptableFullScreenPass::getScriptingDictionary()
 {
@@ -201,7 +218,8 @@ RenderPassReflection ScriptableFullScreenPass::reflect(const CompileData& compil
             throw std::runtime_error("unknown view");
         }
 
-        field->flags(RenderPassReflection::Field::Flags::Optional);
+        if(res.optional)
+            field->flags(RenderPassReflection::Field::Flags::Optional);
 
         switch (res.type)
         {
@@ -213,6 +231,9 @@ RenderPassReflection ScriptableFullScreenPass::reflect(const CompileData& compil
             break;
         case ResourceDesc::Type::Texture3D:
             field->texture3D(res.size.x, res.size.y, res.size.z);
+            break;
+        case ResourceDesc::Type::Texture2DArray:
+            field->texture2D(res.size.x, res.size.y, 1, 1, res.size.z);
             break;
         case ResourceDesc::Type::RawBuffer:
             field->rawBuffer(res.size.x);
@@ -232,8 +253,20 @@ RenderPassReflection ScriptableFullScreenPass::reflect(const CompileData& compil
         case ResourceDesc::Format::RGBA32U:
             field->format(ResourceFormat::RGBA32Uint);
             break;
+        case ResourceDesc::Format::RGBA32I:
+            field->format(ResourceFormat::RGBA32Int);
+            break;
         case ResourceDesc::Format::RGBA8Unorm:
             field->format(ResourceFormat::RGBA8Unorm);
+            break;
+        case ResourceDesc::Format::R32F:
+            field->format(ResourceFormat::R32Float);
+            break;
+        case ResourceDesc::Format::R32U:
+            field->format(ResourceFormat::R32Uint);
+            break;
+        case ResourceDesc::Format::R32I:
+            field->format(ResourceFormat::R32Int);
             break;
         case ResourceDesc::Format::Auto:
             // field->format(compileData.defaultTexFormat);
@@ -431,6 +464,7 @@ void ScriptableFullScreenPass::renderUI(Gui::Widgets& widget)
             if(!res.autoSized)
                 subgroup.var("Size", res.size, 1);
             subgroup.checkbox("Clear", res.clear);
+            subgroup.checkbox("Optional", res.optional);
             if (subgroup.button("Delete"))
                 toDelete.insert(i);
         }

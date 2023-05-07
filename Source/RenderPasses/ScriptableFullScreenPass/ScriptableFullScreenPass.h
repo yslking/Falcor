@@ -31,6 +31,10 @@
 #include "RenderGraph/BasePasses/ComputePass.h"
 #include <string>
 
+namespace ScriptableFullScreenPassStatic {
+    void regScriptableFullScreenPass(pybind11::module& m);
+};
+
 using namespace Falcor;
 
 class ResourceDesc
@@ -55,6 +59,7 @@ public:
         Texture1D,
         Texture2D,
         Texture3D,
+        Texture2DArray,
         TextureCube,
         RawBuffer,
     };
@@ -80,7 +85,11 @@ public:
         Unknown,
         RGBA32F,
         RGBA32U,
+        RGBA32I,
         RGBA8Unorm,
+        R32F,
+        R32U,
+        R32I,
     };
     static const std::vector<std::string> FormatNames;
 
@@ -94,12 +103,13 @@ public:
     View view = View::SRV;
     Format format = Format::Auto;
     bool clear = false;
+    bool optional = true;
 
     // converter
 
-    static ResourceDesc create(const std::string identifier, Type type, const uint3& size, bool autoSized, uint32_t targetSlot, View view, Format format, bool clear)
+    static ResourceDesc create(const std::string identifier, Type type, const uint3& size, bool autoSized, uint32_t targetSlot, View view, Format format, bool clear, bool optional)
     {
-        return { identifier, type, size, autoSized, targetSlot, view, format, clear };
+        return { identifier, type, size, autoSized, targetSlot, view, format, clear, optional };
     }
 
     static ResourceDesc createDefault()
@@ -174,5 +184,8 @@ private:
     // static constants
     static const std::string sDefaultPixelShaderPath;
     static const std::string sDefaultComputeShaderPath;
+
+public:
+    friend void ScriptableFullScreenPassStatic::regScriptableFullScreenPass(pybind11::module& m);
 };
 
