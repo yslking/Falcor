@@ -264,7 +264,7 @@ namespace Falcor
     FALCOR_API const std::filesystem::path& getCurrentlyLoadingScriptPath();
     FALCOR_API void setCurrentlyLoadingScriptPath(const std::filesystem::path&);
 
-    FALCOR_API const std::filesystem::path& setActiveGraphScriptPath();
+    FALCOR_API const std::filesystem::path& getActiveGraphScriptPath();
     FALCOR_API void setActiveGraphScriptPath(const std::filesystem::path&);
 
     /** Get a list of all recorded data directories.

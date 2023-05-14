@@ -508,11 +508,31 @@ namespace Falcor
         //
         std::vector<std::string> searchPaths;
         std::vector<const char*> slangSearchPaths;
+
+        auto& activeGraphScriptPath = getActiveGraphScriptPath();
+        if (!activeGraphScriptPath.empty())
+        {
+            auto path = activeGraphScriptPath.parent_path().string();
+            for (auto& c : path) if (c == '\\') c = '/';
+            searchPaths.push_back(path);
+            slangSearchPaths.push_back(path.data());
+        }
+
+        auto& loadingGraphScriptPath = getCurrentlyLoadingScriptPath();
+        if (!loadingGraphScriptPath.empty())
+        {
+            auto path = loadingGraphScriptPath.parent_path().string();
+            for (auto& c : path) if (c == '\\') c = '/';
+            searchPaths.push_back(path);
+            slangSearchPaths.push_back(path.data());
+        }
+
         for (auto& path : getShaderDirectoriesList())
         {
             searchPaths.push_back(path.string());
             slangSearchPaths.push_back(searchPaths.back().data());
         }
+
         sessionDesc.searchPaths = slangSearchPaths.data();
         sessionDesc.searchPathCount = (SlangInt)slangSearchPaths.size();
 

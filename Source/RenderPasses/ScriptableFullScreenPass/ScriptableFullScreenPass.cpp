@@ -31,6 +31,7 @@
 
 static std::string kShaderPath = "kShaderPath";
 static std::string kResources = "kResources";
+static std::string kExternalTextures = "kExternalResources";
 static std::string kThreads = "kThreads";
 static std::string kCompute = "kCompute";
 static std::string kAutoThreads = "kAutoThreads";
@@ -86,6 +87,30 @@ namespace ScriptableFullScreenPassStatic
 
     void regScriptableFullScreenPass(pybind11::module& m)
     {
+        pybind11::class_<ExternalTextureDesc> externalTextureDesc(m, "ExternalTextureDesc");
+        externalTextureDesc.def_readwrite("identifier", &ExternalTextureDesc::identifier);
+        externalTextureDesc.def_readwrite("path", &ExternalTextureDesc::path);
+        externalTextureDesc.def_readwrite("sRGB", &ExternalTextureDesc::sRGB);
+        externalTextureDesc.def_readwrite("createMips", &ExternalTextureDesc::createMips);
+        ExternalTextureDesc externalTextureDescDefault;
+        externalTextureDesc.def(
+            pybind11::init(&ExternalTextureDesc::create),
+            pybind11::arg("identifier") = externalTextureDescDefault.identifier,
+            pybind11::arg("path") = externalTextureDescDefault.path,
+            pybind11::arg("sRGB") = externalTextureDescDefault.sRGB,
+            pybind11::arg("createMips") = externalTextureDescDefault.createMips
+        );
+        externalTextureDesc.def("clone", [](ExternalTextureDesc self) { return self; });
+        externalTextureDesc.def("__repr__", [m, externalTextureDesc](const ExternalTextureDesc& desc) {
+            return fmt::format(
+                "ExternalTextureDesc(identifier={}, path={}, sRGB={}, createMips={})",
+                pyRepr(desc.identifier),
+                pyRepr(desc.path),
+                pyRepr(desc.sRGB),
+                pyRepr(desc.createMips)
+            );
+        });
+
         pybind11::class_<ResourceDesc> resourceDesc(m, "ResourceDesc");
         registerEnum<ResourceDesc::Type>(resourceDesc, "Type", ResourceDesc::TypeNames);
         registerEnum<ResourceDesc::View>(resourceDesc, "View", ResourceDesc::ViewNames);
@@ -135,6 +160,7 @@ namespace ScriptableFullScreenPassStatic
 
         pass.def_readwrite("shaderPath", &ScriptableFullScreenPass::mShaderPath);
         pass.def_readwrite("resources", &ScriptableFullScreenPass::mResources);
+        pass.def_readwrite("externalTextures", &ScriptableFullScreenPass::mExternalTextures);
         pass.def_readwrite("threads", &ScriptableFullScreenPass::mThreads);
         pass.def_readwrite("compute", &ScriptableFullScreenPass::mCompute);
         pass.def_readwrite("autoThreads", &ScriptableFullScreenPass::mAutoThreads);
@@ -165,13 +191,14 @@ const std::string ScriptableFullScreenPass::sDefaultComputeShaderPath = "RenderP
 
 const std::vector<std::string> ResourceDesc::TypeNames = { "Texture1D", "Texture2D", "Texture3D", "Texture2DArray", "TextureCube", "RawBuffer", };
 const std::vector<std::string> ResourceDesc::ViewNames = { "RTV_Out", "RTV_InOut", "UAV_Out", "UAV_InOut", "SRV", };
-const std::vector<std::string> ResourceDesc::FormatNames = { "Auto", "Unknown", "RGBA32F", "RGBA32U", "RGBA32I", "RGBA8Unorm", "R32F", "R32U", "R32I" };
+const std::vector<std::string> ResourceDesc::FormatNames = { "Auto", "Unknown", "RGBA32F", "RGBA32U", "RGBA32I", "RGBA8Unorm", "R32F", "R32U", "R32I", "RG32F"};
 
 Dictionary ScriptableFullScreenPass::getScriptingDictionary()
 {
     Dictionary out;
     out[kShaderPath] = mShaderPath;
     out[kResources] = mResources;
+    out[kExternalTextures] = mExternalTextures;
     out[kThreads] = mThreads;
     out[kCompute] = mCompute;
     out[kAutoThreads] = mAutoThreads;
@@ -182,6 +209,7 @@ void ScriptableFullScreenPass::loadFromDictionary(const Dictionary& dict)
 {
     mShaderPath = dict.get(kShaderPath, mShaderPath);
     mResources = dict.get(kResources, mResources);
+    mExternalTextures = dict.get(kExternalTextures, mExternalTextures);
     mThreads = dict.get(kThreads, mThreads);
     mCompute = dict.get(kCompute, mCompute);
     mAutoThreads = dict.get(kAutoThreads, mAutoThreads);
@@ -268,6 +296,9 @@ RenderPassReflection ScriptableFullScreenPass::reflect(const CompileData& compil
         case ResourceDesc::Format::R32I:
             field->format(ResourceFormat::R32Int);
             break;
+        case ResourceDesc::Format::RG32F:
+            field->format(ResourceFormat::RG32Float);
+            break;
         case ResourceDesc::Format::Auto:
             // field->format(compileData.defaultTexFormat);
             break;
@@ -346,6 +377,15 @@ void ScriptableFullScreenPass::execute(RenderContext* pRenderContext, const Rend
             }
         }
 
+        for (size_t i = 0; i < mExternalTextureHandles.size(); i++)
+        {
+            if (i >= mExternalTextures.size()) break;
+            auto tex = mExternalTextureHandles[i];
+            if(tex == nullptr) continue;
+            auto desc = mExternalTextures[i];
+            setTopLevelItem(getRootVar(), desc.identifier, tex);
+        }
+
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iMousePosition", mMousePosition);
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iMouseCoordinate", mMouseCoordinate);
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iMouseLastCoordinate", mMouseLastCoordinate);
@@ -354,6 +394,7 @@ void ScriptableFullScreenPass::execute(RenderContext* pRenderContext, const Rend
         setConstantBufferItem(getRootVar(), "PerFrameCB", "iDeltaTime", (float)gpFramework->getGlobalClock().getDelta());
         if (auto scene = mpScene)
         {
+
             if (auto camera = scene->getCamera())
             {
                 auto& cameraData = camera->getCameraData();
@@ -362,6 +403,14 @@ void ScriptableFullScreenPass::execute(RenderContext* pRenderContext, const Rend
                 setConstantBufferItem(getRootVar(), "PerFrameCB", "iCameraV", cameraData.cameraV);
                 setConstantBufferItem(getRootVar(), "PerFrameCB", "iCameraW", cameraData.cameraW);
                 setConstantBufferItem(getRootVar(), "PerFrameCB", "iFrameDim", mFrameDim);
+            }
+
+            auto lights = scene->getLights();
+            setConstantBufferItem(getRootVar(), "PerFrameCB", "iLightCount", uint32_t(lights.size()));
+
+            if(auto lightsBuffer = mpScene->getLightsBuffer())
+            {
+                setTopLevelItem(getRootVar(), "iLights", lightsBuffer);
             }
         }
 
@@ -395,10 +444,16 @@ void ScriptableFullScreenPass::execute(RenderContext* pRenderContext, const Rend
 void ScriptableFullScreenPass::createResources()
 {
     Program::DefineList defineList;
-    if (mpScene)
-        defineList = mpScene->getSceneDefines();
-    else
-        defineList = Scene::getDefaultSceneDefines();
+    //if (mpScene)
+    //{
+    //    defineList = mpScene->getSceneDefines();
+    //    defineList.add(mpScene->getHitInfo().getDefines());
+    //}
+    //else
+    //{
+    //    defineList = Scene::getDefaultSceneDefines();
+    //    defineList.add(HitInfo().getDefines());
+    //}
 
     try
     {
@@ -424,6 +479,12 @@ void ScriptableFullScreenPass::createResources()
         samplerDesc.setAddressingMode(Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp, Sampler::AddressMode::Clamp);
         pSampler = Sampler::create(samplerDesc);
     }
+
+    mExternalTextureHandles.clear();
+    for(auto texDesc: mExternalTextures)
+    {
+        mExternalTextureHandles.push_back(Texture::createFromFile(texDesc.path, texDesc.createMips, texDesc.sRGB));
+    }
 }
 
 void ScriptableFullScreenPass::renderUI(Gui::Widgets& widget)
@@ -440,9 +501,10 @@ void ScriptableFullScreenPass::renderUI(Gui::Widgets& widget)
             widget.var("Threads", this->mThreads, 1);
         }
     }
-    
-    auto group = widget.group("Resources");
+   
     {
+        auto group = widget.group("Resources");
+
         if (group.button("Add"))
         {
             mResources.push_back({});
@@ -457,6 +519,9 @@ void ScriptableFullScreenPass::renderUI(Gui::Widgets& widget)
             subgroup.textbox("Identifier", res.identifier);
             subgroup.dropdown("Type", ResourceDesc::getTypeDropdownList(), (uint32_t&)res.type);
             subgroup.dropdown("View", ResourceDesc::getViewDropdownList(), (uint32_t&)res.view);
+            if (res.view == ResourceDesc::View::RTV_InOut || res.view == ResourceDesc::View::RTV_Out)
+                subgroup.var<uint32_t>("Target Slot", res.targetSlot, 0, 7);
+            
             subgroup.dropdown("Format", ResourceDesc::getFormatDropdownList(), (uint32_t&)res.format);
             subgroup.checkbox("Auto Sized", res.autoSized);
             if (res.type != ResourceDesc::Type::Texture2D)
@@ -474,6 +539,36 @@ void ScriptableFullScreenPass::renderUI(Gui::Widgets& widget)
         for (size_t i = 0; i < old.size(); i++)
             if(!toDelete.count(i))
                 mResources.push_back(old[i]);
+    }
+
+
+    {
+        auto group = widget.group("External Textures");
+
+        if (group.button("Add"))
+        {
+            mExternalTextures.push_back({});
+        }
+
+        std::set<size_t> toDelete;
+
+        for (size_t i = 0; i < mExternalTextures.size(); i++)
+        {
+            auto& res = mExternalTextures[i];
+            auto subgroup = group.group(std::to_string(i));
+            subgroup.textbox("Identifier", res.identifier);
+            subgroup.textbox("Path", res.path);
+            subgroup.checkbox("sRGB", res.sRGB);
+            subgroup.checkbox("Create Mips", res.createMips);
+            if (subgroup.button("Delete"))
+                toDelete.insert(i);
+        }
+
+        auto old = mExternalTextures;
+        mExternalTextures.clear();
+        for (size_t i = 0; i < old.size(); i++)
+            if (!toDelete.count(i))
+                mExternalTextures.push_back(old[i]);
     }
 
     if (reload)

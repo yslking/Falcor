@@ -90,6 +90,7 @@ public:
         R32F,
         R32U,
         R32I,
+        RG32F
     };
     static const std::vector<std::string> FormatNames;
 
@@ -117,6 +118,26 @@ public:
         return {};
     }
 };
+
+
+struct ExternalTextureDesc
+{
+    std::string identifier;
+    std::string path;
+    bool sRGB = false;
+    bool createMips = true;
+
+    static ExternalTextureDesc create(const std::string& identifier, const std::string& path, bool sRGB, bool createMips)
+    {
+        return { identifier, path, sRGB, createMips };
+    }
+
+    static ExternalTextureDesc createDefault()
+    {
+        return {};
+    }
+};
+
 
 class ScriptableFullScreenPass : public RenderPass 
 {
@@ -177,6 +198,8 @@ private:
     // Dictionary
     std::string mShaderPath;
     std::vector<ResourceDesc> mResources;
+    std::vector<ExternalTextureDesc> mExternalTextures;
+    std::vector<Texture::SharedPtr> mExternalTextureHandles;
     bool mCompute = false;
     uint3 mThreads = uint3(1, 1, 1);
     bool mAutoThreads = false;

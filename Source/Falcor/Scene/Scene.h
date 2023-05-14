@@ -1066,6 +1066,8 @@ namespace Falcor
 
         std::string getScript(const std::string& sceneVar);
 
+        Falcor::Buffer::SharedPtr getLightsBuffer() { return mpLightsBuffer; }
+
     private:
         friend class AnimationController;
         friend class AnimatedVertexCache;
